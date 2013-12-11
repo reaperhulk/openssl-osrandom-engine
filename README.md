@@ -4,11 +4,13 @@ This is a very simple engine that can replace the OpenSSL CSPRNG with /dev/urand
 
 ###Caveats
 
-If you prefer the OpenSSL CSPRNG over /dev/urandom then this is not the engine for you. Otherwise the current version of this engine has the following issues:
+If you prefer the OpenSSL CSPRNG over /dev/urandom then you should not use this. Otherwise the current version of this engine has the following issues:
 
 * No persistent urand file descriptor. Performance will suffer.
 * No Windows support
 * Brand new, use at your own risk.
+
+/dev/urandom is not a panacea and the existence of this engine should not be considered evidence that it is superior to OpenSSL's CSPRNG.
 
 #### Compiling
 
