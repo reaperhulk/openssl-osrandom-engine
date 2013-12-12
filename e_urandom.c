@@ -17,42 +17,43 @@
 #include <openssl/engine.h>
 
 
-static int rand_bytes(unsigned char *buffer, int size);
-static int rand_status(void);
+static int urandom_rand_bytes(unsigned char *buffer, int size);
+static int urandom_rand_status(void);
+static int urandom_init(ENGINE *e);
+static int urandom_finish(ENGINE *e);
+
+static int urandom_fd;
 
 /* Constants used when creating the ENGINE */
-static const char *engine_id= "urandom";
-static const char *engine_name = "urandom engine";
+static const char *urandom_engine_id= "urandom";
+static const char *urandom_engine_name = "urandom engine";
 
-static RAND_METHOD urand_rand = {
+
+static RAND_METHOD urandom_rand = {
     NULL,
-    rand_bytes,
+    urandom_rand_bytes,
     NULL,
     NULL,
-    rand_bytes,
-    rand_status,
+    urandom_rand_bytes,
+    urandom_rand_status,
 };
 
-static int bind_helper(ENGINE *e)
-    {
-    if(!ENGINE_set_id(e, engine_id) ||
-            !ENGINE_set_name(e, engine_name) ||
-            !ENGINE_set_RAND(e, &urand_rand))
+static int urandom_bind_helper(ENGINE *e) {
+    if(!ENGINE_set_id(e, urandom_engine_id) ||
+            !ENGINE_set_name(e, urandom_engine_name) ||
+            !ENGINE_set_RAND(e, &urandom_rand) ||
+            !ENGINE_set_init_function(e, urandom_init) ||
+            !ENGINE_set_finish_function(e, urandom_finish))
+
         return 0;
     return 1;
-    }
+}
 
-static int rand_bytes(unsigned char *buffer, int size) {
-    int fd;
+static int urandom_rand_bytes(unsigned char *buffer, int size) {
     ssize_t n;
-
-    fd = open("/dev/urandom", O_RDONLY);
-    if (fd < 0)
-        return 0;
-
     while (0 < size) {
         do {
-            n = read(fd, buffer, (size_t)size);
+            n = read(urandom_fd, buffer, (size_t)size);
         } while (n < 0 && errno == EINTR);
         if (n <= 0) {
             return 0;
@@ -61,20 +62,40 @@ static int rand_bytes(unsigned char *buffer, int size) {
         buffer += n;
         size -= n;
     }
-    close(fd);
     return 1;
 }
 
-static int rand_status(void) {
+static int urandom_rand_status(void) {
     return 1;
+}
+
+static int urandom_init(ENGINE *e) {
+    urandom_fd = open("/dev/urandom", O_RDONLY);
+    if (urandom_fd > 0) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int urandom_finish(ENGINE *e) {
+    int n;
+    do {
+        n = close(urandom_fd);
+    } while (n < 0 && errno == EINTR);
+    if (n < 0) {
+        return 0;
+    } else {
+        return 1;
+    }
 }
 
 #ifndef OPENSSL_NO_DYNAMIC_ENGINE
-static int bind_fn(ENGINE *e, const char *id) {
-    if(!bind_helper(e))
+static int urandom_bind_fn(ENGINE *e, const char *id) {
+    if(!urandom_bind_helper(e))
         return 0;
     return 1;
 }
 IMPLEMENT_DYNAMIC_CHECK_FN()
-IMPLEMENT_DYNAMIC_BIND_FN(bind_fn)
+IMPLEMENT_DYNAMIC_BIND_FN(urandom_bind_fn)
 #endif /* OPENSSL_NO_DYNAMIC_ENGINE */

@@ -6,8 +6,7 @@ This is a very simple engine that can replace the OpenSSL CSPRNG with /dev/urand
 
 If you prefer the OpenSSL CSPRNG over /dev/urandom then you should not use this. Otherwise the current version of this engine has the following issues:
 
-* No persistent urand file descriptor
-* /dev/urandom is substantially slower than the OpenSSL CSPRNG. If your application requires >10MB/sec of entropy look elsewhere.
+* /dev/urandom is slower than the OpenSSL CSPRNG. If your application requires >10MB/sec of entropy look elsewhere.
 * No Windows support
 * Brand new, use at your own risk.
 
