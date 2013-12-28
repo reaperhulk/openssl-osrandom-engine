@@ -11,43 +11,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <BaseTsd.h>
+#else
 #include <fcntl.h>
+#include <unistd.h>
+#endif
 
 #include <openssl/engine.h>
 
-
-static int urandom_rand_bytes(unsigned char *buffer, int size);
-static int urandom_rand_status(void);
-static int urandom_init(ENGINE *e);
-static int urandom_finish(ENGINE *e);
-
-static int urandom_fd;
 
 /* Constants used when creating the ENGINE */
 static const char *urandom_engine_id= "urandom";
 static const char *urandom_engine_name = "urandom engine";
 
 
-static RAND_METHOD urandom_rand = {
-    NULL,
-    urandom_rand_bytes,
-    NULL,
-    NULL,
-    urandom_rand_bytes,
-    urandom_rand_status,
-};
-
-static int urandom_bind_helper(ENGINE *e) {
-    if(!ENGINE_set_id(e, urandom_engine_id) ||
-            !ENGINE_set_name(e, urandom_engine_name) ||
-            !ENGINE_set_RAND(e, &urandom_rand) ||
-            !ENGINE_set_init_function(e, urandom_init) ||
-            !ENGINE_set_finish_function(e, urandom_finish))
-
-        return 0;
-    return 1;
-}
+#ifndef _WIN32
+static int urandom_fd;
 
 static int urandom_rand_bytes(unsigned char *buffer, int size) {
     ssize_t n;
@@ -89,6 +70,91 @@ static int urandom_finish(ENGINE *e) {
         return 1;
     }
 }
+
+static RAND_METHOD urandom_rand = {
+    NULL,
+    urandom_rand_bytes,
+    NULL,
+    NULL,
+    urandom_rand_bytes,
+    urandom_rand_status,
+};
+
+static int urandom_bind_helper(ENGINE *e) {
+    if(!ENGINE_set_id(e, urandom_engine_id) ||
+            !ENGINE_set_name(e, urandom_engine_name) ||
+            !ENGINE_set_RAND(e, &urandom_rand) ||
+            !ENGINE_set_init_function(e, urandom_init) ||
+            !ENGINE_set_finish_function(e, urandom_finish))
+
+        return 0;
+    return 1;
+}
+
+
+#endif
+
+#ifdef _WIN32
+/* This handle is never explicitly released. Instead, the operating
+   system will release it when the process terminates. */
+static HCRYPTPROV hCryptProv = 0;
+
+static int win32_urandom_init(ENGINE *) {
+    /* Acquire context */
+    if (CryptAcquireContext(&hCryptProv, NULL, NULL,
+                            PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int win32_urandom(unsigned char *buffer, int size) {
+    size_t chunk;
+
+    if (hCryptProv == 0) {
+        return 0;
+    }
+
+    while (size > 0) {
+        chunk = size > INT_MAX ? INT_MAX : size;
+        if (!CryptGenRandom(hCryptProv, (DWORD)chunk, buffer)) {
+            return 0;
+        }
+        buffer += chunk;
+        size -= chunk;
+    }
+    return 1;
+}
+
+static int win32_urandom_finish(ENGINE *e) {
+    return 1;
+}
+
+static int win32_urandom_rand_status(void) {
+    return 1;
+}
+
+static RAND_METHOD win32_urandom_rand = {
+    NULL,
+    win32_urandom,
+    NULL,
+    NULL,
+    win32_urandom,
+    win32_urandom_rand_status,
+};
+
+static int urandom_bind_helper(ENGINE *e) {
+    if(!ENGINE_set_id(e, urandom_engine_id) ||
+            !ENGINE_set_name(e, urandom_engine_name) ||
+            !ENGINE_set_RAND(e, &win32_urandom_rand) ||
+            !ENGINE_set_init_function(e, win32_urandom_init) ||
+            !ENGINE_set_finish_function(e, win32_urandom_finish))
+
+        return 0;
+    return 1;
+}
+#endif /* MS_WINDOWS */
 
 #ifndef OPENSSL_NO_DYNAMIC_ENGINE
 static int urandom_bind_fn(ENGINE *e, const char *id) {
