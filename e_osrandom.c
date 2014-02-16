@@ -45,7 +45,7 @@ static int osrandom_rand_bytes(unsigned char *buffer, int size) {
 
     if (!CryptGenRandom(hCryptProv, (DWORD)size, buffer)) {
         ERR_put_error(
-            ERR_LIB_RAND, 0, ERR_R_RAND_LIB, "e_urandom.c", 0
+            ERR_LIB_RAND, 0, ERR_R_RAND_LIB, "e_osrandom.c", 0
         );
         return 0;
     }
@@ -101,7 +101,7 @@ static int osrandom_rand_bytes(unsigned char *buffer, int size) {
         } while (n < 0 && errno == EINTR);
         if (n <= 0) {
             ERR_put_error(
-                ERR_LIB_RAND, 0, ERR_R_RAND_LIB, "e_urandom.c", 0
+                ERR_LIB_RAND, 0, ERR_R_RAND_LIB, "e_osrandom.c", 0
             );
             return 0;
         }
